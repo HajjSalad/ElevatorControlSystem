@@ -1,7 +1,10 @@
-# ElevatorControlSystem
+# Elevator Control System
 Overview
 
-This project simulates a 4-floor elevator control system through a console-based interface. The system operates with a simple queue data structure to manage floor requests in a First-In-First-Out (FIFO) order.
+This project simulates a 4-floor elevator control system.
+
+# Approach 1
+Use a simple queue data structure to manage floor requests in a First-In-First-Out (FIFO) order.
 
 Assumptions
 
@@ -20,7 +23,6 @@ Drawbacks of Using FIFO linear queue
 - Inefficiencies in queue processing. Ex. requests 1→4, 2→3,  the elevator goes 1→4 then comes back to process 2→3.
 - Lack of directional awareness - need to optimize based on direction.
 
-Alternative Approaches
+# Approach 2
 
-- Priority queue to prioritize requests based on direction.
 - SCAN Algorithm - Elevator moves in a single direction (up/down) until it reaches the last requested floor in that direction, then reverses its direction.

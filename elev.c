@@ -25,18 +25,18 @@ void expand_queue(queue* q);
 int peek(queue* q);
 bool isFull(queue* q);
 bool isEmpty(queue* q);
-void enqueue(queue* q, int current_floor, int target_floor);
-void dequeue_pair(queue* q, int *current_floor, int *target_floor);
+void add_request_to_queue(queue* q, int current_floor, int target_floor);
+void get_request_pair_from_queue(queue* q, int *current_floor, int *target_floor);
 void printQueue(queue* q);
 void free_queue(queue* q);
 
 void display_elevator(int current_floor);
 void display_elevator_status(int current_floor, int target_floor);
 void display_elevator_motion(int current_floor, int target_floor);
-void elevator_motion(queue* q, int next_floor, int other_next, int *last_call);
-void elevator_requests(queue* q, int *flag, int *last_call);
-void elevator_control(queue* q);
-void run_elevator(queue* q, int *flag, int *last_call);
+void move_the_elevator(queue* q, int next_floor, int other_next, int *last_floor);
+void manage_the_requests(queue* q, int *flag, int *last_call);
+void elevator_main_control(queue* q);
+void run_the_elevator(queue* q, int *flag, int *last_call);
 
 // Initialize the queue
 void init_queue(queue* q, int initial_capacity) {
@@ -50,13 +50,13 @@ void init_queue(queue* q, int initial_capacity) {
     q->capacity = initial_capacity;
 }
 
-// Expand the queue by doubling when its full - I think its good for scalability
+// Double queue to expand when its full - I think its good for scalability
 // Will consider circular queue in a constrained environment
 void expand_queue(queue* q) {
     int new_capacity = q->capacity*2;
     int *new_calls = (int*)realloc(q->calls, new_capacity*sizeof(int));
     if (new_calls == NULL) {
-        fprintf(stderr, "Reallocation failed");
+        fprintf(stderr, "Reallocation failed for queue expansion");
         exit(EXIT_FAILURE);
     }
     q->calls = new_calls;
@@ -74,12 +74,7 @@ bool isEmpty(queue* q) {
 }
 
 // Insert the call into the queue
-void enqueue(queue* q, int current_floor, int target_floor) {
-    /*
-    if (isFull(q)) {
-        printf("The elevator is busy now. Please wait.\n");
-        return;
-    } */
+void add_request_to_queue(queue* q, int current_floor, int target_floor) {
     if (q->rear +1 == q->capacity) {       // Expand the queue if full
         expand_queue(q);
     }
@@ -88,9 +83,8 @@ void enqueue(queue* q, int current_floor, int target_floor) {
 }
 
 // Get element from the queue
-void dequeue_pair(queue* q, int *current_floor, int *target_floor) {
-    if (isEmpty(q)) {
-        //printf("No more requests.");
+void get_request_pair_from_queue(queue* q, int *current_floor, int *target_floor) {
+    if (isEmpty(q)) {                   // If no more requests
         *current_floor = STOP;
         *target_floor = STOP;
         return;
@@ -163,136 +157,143 @@ void display_elevator_motion(int current_floor, int target_floor) {
     }
 }
 // Move the elevator to the requested floor
-void elevator_motion(queue* q, int current_floor, int target_floor, int *last_call) {
+void move_the_elevator(queue* q, int current_floor, int target_floor, int *last_floor) {
     const char* floors[] = {"Floor 1", "Floor 2", "Floor 3", "Floor 4"};
     printf("\n");
 
-    // Elevator idle and no target floor is specified
-    if (target_floor == -1) {
-        return;
-    }
-
-    display_elevator_status(current_floor, target_floor);               // Show where the elevator is and next stop
+    display_elevator_status(current_floor, target_floor);               // Show where the elev is and next stop
     
-    display_elevator_motion(current_floor, target_floor);               // Show the arrival of the elevator at each floor
+    display_elevator_motion(current_floor, target_floor);               // Show the arrival of the elev at each floor
     
-    printf("Elevator has arrived at %s\n\n", floors[target_floor - 1]);
+    printf("Elevator has arrived at %s\n\n", floors[target_floor - 1]); // Show elev arrival at the target floor
 
-    // Check if another request in the queue then go to service it
+    // Check if another request in the queue then transition to service it
     if (!isEmpty(q)) {
-        int next_request = peek(q);
-        //printf("Next stop = %d\n", next_stop);
-        
-        display_elevator_status(target_floor, next_request);               // Update where the elevator is and the next stop
+        int next_request_from = peek(q);
 
-        display_elevator_motion(target_floor, next_request);               // Update the motion while the elevator goes to service the next request
+        if (next_request_from == REQUEST_POSITION) {        // Elev position requested
+            return;                                         // No need to display the transition to next request
+        } else if (next_request_from == STOP) {             // End simulation requested
+            return;                                         // No need to display the transition to next request
+        } else {
+             display_elevator_status(target_floor, next_request_from);            // Update where the elev is and the next stop
 
-        printf("Elevator has arrived at %s\n\n", floors[next_request - 1]);  // Elev arrivs to service the next request
-    } else {
-        last_call = &target_floor;
+            display_elevator_motion(target_floor, next_request_from);            // Update the motion while the elev goes to service the next request
+
+            printf("Elevator has arrived at %s for next request\n\n", floors[next_request_from - 1]);  // Elev arrives to service the next request
+        }       
+    } else {        // If no next request
+        *last_floor = target_floor;             // record the last floor visited - this is where the elev will idle
     }
 }
 
 // Runs the elevator according to the requests in the Queue
-void run_elevator(queue* q, int *flag, int *last_call) {
-    if(!*flag) return;
+void run_the_elevator(queue* q, int *end_simulation, int *last_floor) {
+    if(*end_simulation) return;     // Simulation terminated
 
-    int current_floor, target_floor;
-
-    if (current_floor == 0) {
-        display_elevator(*last_call);
-    }         
-
-    /*// If there's only one request in the queue
-    if(isEmpty(q)) {
-        next_floor_request(current_floor, -1);
-        *last_call = current_floor;
-        return;
-    }*/
-
-    // If multiple requests in the queue
+    int current_floor;              // Floor you're requesting from
+    int target_floor;               // Floor you wish to go
+        
+    // Service the request
     while (!isEmpty(q)) {
-        dequeue_pair(q, &current_floor, &target_floor);
+        get_request_pair_from_queue(q, &current_floor, &target_floor);   // Get the request from the queue
 
-        if (current_floor == STOP || target_floor == STOP) {
-            printf("Simulation Ended.\n");
-            *flag = 0;
+        if (current_floor == STOP || target_floor == STOP) {                // Check stop condition
+            printf("Simulation Ended.\n\n");
+            *end_simulation = 1;
+            return;
+        } else if (current_floor == REQUEST_POSITION || target_floor == REQUEST_POSITION) {     // Input queued = 0 0
+            display_elevator(*last_floor);
+            return;
+        } else {
+            printf("Move is done here");
+            move_the_elevator(q, current_floor, target_floor, last_floor);      // Fulfil the request
         }
-
-        elevator_motion(q, current_floor, target_floor, last_call);           // Process the next floor request
-    }
-
-    // Handle the last request - while loop wont run because queue is empty
-    elevator_motion(q, current_floor, -1, last_call);
-    *last_call = current_floor;    
+    }  
 }
 
 // Queues the requests in the queue
-void elevator_requests(queue* q, int *flag, int *last_call) {
+void manage_the_requests(queue* q, int *end_simulation, int *last_floor) {
     char line[256];
     
-    printf("Request floor on and target floor (ex. '1 4, 2 3'): ");
+    printf("Request current floor and target floor (ex. '1 4, 2 3'): ");
     // Read user input line
     if (fgets(line, sizeof(line), stdin)) {
-        // check if input is empty
-        if (strlen(line) == 1 && line[0] == '\n') {
-            printf("Input is empty. Enter a valid floor request.\n");
-            return;
+        
+        if (strlen(line) <= 2) {                                // If only 1 or less input
+            if (line[0] == '\n' || line[0] == '\0') {           // input is empty
+                printf("Input is empty. Enter valid floor requests.\n");
+                return;
+            }
         }
+    
         line[strcspn(line, "\n")] = '\0';               // Remove trailing newline if present
 
         // Tokenize to get the pairs of requests
         char *token = strtok(line, ",");                // Gets you the first token
 
         while (token != NULL) {                         // Go through the rest of the tokens
-            int current_floor, target_floor;
-
+            int current_floor;                          // Floor you are requesting from
+            int target_floor;                           // Floor you wish to going
+            int position_or_end;                         // Position of the elevator
             while (isspace((unsigned char)*token)) token++;             // Skip the spaces
+
             // Process current and target floor
-            if (sscanf(token, "%d %d", &current_floor, &target_floor) == 2){        // Formatted input
-                if (current_floor == STOP || target_floor == STOP) {              // Check stop condition
+            if (sscanf(token, "%d %d", &current_floor, &target_floor) == 2){        // If token has 2 integers
+                if (current_floor == STOP || target_floor == STOP) {                // Check stop condition
+                    *end_simulation = 1;                                            // Terminate the simulation
                     printf("End of Simulation. Exiting...\n");
-                    *flag = 0;
                     return;
                 }
-                
+
                 if (current_floor >= MIN_FLOOR && current_floor <= MAX_FLOOR &&
                     target_floor >= MIN_FLOOR && target_floor <= MAX_FLOOR &&
-                    current_floor != target_floor) {                    // Valid floor range
-                    if ((target_floor-current_floor) > 0) {
+                    current_floor != target_floor) {                                // Valid floor range
+                    if ((target_floor - current_floor) > 0) {                       // Going up
                         printf("+ve\n");
-                    } else if ((target_floor-current_floor) < 0) {
+                    } else if ((target_floor - current_floor) < 0) {                // Going down
                         printf("-ve\n");
                     }
-                    enqueue(q, current_floor, target_floor);            // Queue the request
+                    add_request_to_queue(q, current_floor, target_floor);            // Queue the request
                 } else if (current_floor == target_floor) {
                     printf("You are here");
                 } else {
-                    printf("Invalid floor request. Please enter 1-4.\n");
+                    printf("Invalid floor request. Please enter floors 1-4.\n");
                 }
+
+            } else if(sscanf(token, "%d", &position_or_end) == 1) {        // If token has only 1 integer
+                if (position_or_end == REQUEST_POSITION) {
+                    add_request_to_queue(q, position_or_end, position_or_end);        // Elev position request added to the queue
+                } else if (position_or_end == STOP) {                                 // Check stop condition
+                    add_request_to_queue(q, position_or_end, position_or_end);        // End simulation request added to the queue
+                }
+
             } else {
-                printf("Invalid input. Please enter two valid numbers only.\n");
+                printf("Invalid input. Please enter pairs of valid numbers.\n");
             }
             token = strtok(NULL, ",");
         }
     } else {
         printf("Error reading input. Please try again.\n");
     }
+    //printQueue(q);
 }
 
-void elevator_control(queue* q) {
-    int flag = 1;
-    int starting_floor = 1;
-    int last_call = 0;
-    // Initial prompt
+// The main elevator control
+void elevator_main_control(queue* q) {
+    int end_simulation = 0;                       // Set to 1 if userInput = -1 to signal termination of the simulation
+    int starting_floor = 1;                       // Starting floor at start of simulation
+    int last_floor = 1;                           // Last floor the elev visited
+    
+    // Initial prompt - at the start of the simulaton
     printf("\n\n\t*** Start of Simulation ***\n");
     printf("You may request 1 or more floors separated by comma.\n");
-    printf("Select Floor 1-4 (Enter -1 to stop; 0 for position of Elevator).\n\n");
-    display_elevator(starting_floor);
+    printf("Select Floor 1-4 (Enter [-1] to stop; [0] for position of Elevator).\n");
+    display_elevator(starting_floor);           // Show graphical rep of the elev with starting floor
 
-    while (flag) {
-        elevator_requests(q, &flag, &last_call);            // Queue the requests into the queue
-        run_elevator(q, &flag, &last_call);                 // Operate the elevator
+    while (!end_simulation) {
+        manage_the_requests(q, &end_simulation, &last_floor);             // Process the userInput requests
+        run_the_elevator(q, &end_simulation, &last_floor);                // Operate the elevator
     }
 }
 
@@ -321,7 +322,7 @@ int main() {
     queue q;
     init_queue(&q, 4);              // Starts with initial capacity of 4
 
-    elevator_control(&q);
+    elevator_main_control(&q);
 
     free_queue(&q);
 

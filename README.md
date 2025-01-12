@@ -1,28 +1,12 @@
 # Elevator Control System
-# Overview
-
 This project simulates a 4-floor elevator control system.
 
-# Approach 1
-Use a simple queue data structure to manage floor requests in a First-In-First-Out (FIFO) order.
-
-Assumptions
-
-- The elevator system starts at Floor 1.
-- The elevator is in the IDLE state when at rest, with the doors open.
-- Door operation (opening and closing) is not included in the design—doors automatically open and close when the elevator reaches the requested floor.
+Overview
+The system allows users to request floors through standard input. Floor requests are managed using a queue data structure, implementing a FIFO (First In, First Out) approach. 
 
 Implementation
+Users input their floor requests, which are added to a queue for processing.
+The elevator moves according to the SCAN algorithm, traveling in one direction (up or down) to service all requests in that direction before reversing to handle remaining requests in the opposite direction. (ex. 1 -> 4, 2 -> 3 : 1 -> 2 -> 3 -> 4)
 
-- The system begins with the elevator at Floor 1 in the IDLE state.
-- Users interact with the system via standard input, where they can request floors.
-- Each request is placed into a queue to implement a FIFO scheduling system for elevator calls.
-
-Drawbacks of Using FIFO linear queue
-
-- Inefficiencies in queue processing. Ex. requests 1→4, 2→3,  the elevator goes 1→4 then comes back to process 2→3.
-- Lack of directional awareness - need to optimize based on direction.
-
-# Approach 2
-
-- SCAN Algorithm - Elevator moves in a single direction (up/down) until it reaches the last requested floor in that direction, then reverses its direction.
+Visualization
+The system provides a graphical representation of the elevator’s location and movement via standard output, making it easy to visualize the elevator’s progress as it services floor requests.
